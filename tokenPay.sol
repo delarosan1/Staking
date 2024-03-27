@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -11,7 +11,7 @@ contract TokenPay is AccessControl, Ownable {
 
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
-    constructor(ENOToken _token) {
+    constructor(ENOToken _token) Ownable(msg.sender) {
         token = _token;
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(MANAGER_ROLE, _msgSender());

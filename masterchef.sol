@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.24;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -31,6 +31,9 @@ contract MasterChefV1 is Ownable, ReentrancyGuard {
     address public dev;
     uint256 public tokenPerBlock;
 
+    bool public isPaused;
+    bool public stakingIsPaused;
+
 
     PoolInfo[] public poolInfo;
     mapping (uint256 => mapping (address => UserInfo)) public userInfo;
@@ -48,7 +51,7 @@ contract MasterChefV1 is Ownable, ReentrancyGuard {
         address _dev,
         uint256 _tokenPerBlock,
         uint256 _startBlock
-    ) {
+    ) Ownable(msg.sender){
         token = _token;
         tokenpay = _tokenpay;
         dev = _dev;
@@ -67,6 +70,32 @@ contract MasterChefV1 is Ownable, ReentrancyGuard {
     modifier validatePool(uint256 _pid) {
         require(_pid < poolInfo.length, "pool Id Invalid");
         _;
+    }
+
+    modifier whenNotPaused() {
+        require(!isPaused, "Contract is paused");
+        _;
+    }
+
+    modifier whenNotStakingPaused() {
+        require(!stakingIsPaused, "Staking is paused");
+        _;
+    }
+
+    function pauseContract() external onlyOwner {
+        isPaused = true;
+    }
+
+    function unpauseContract() external onlyOwner {
+        isPaused = false;
+    }
+
+    function pauseStakingContract() external onlyOwner {
+        stakingIsPaused = true;
+    }
+
+    function unpauseStakingContract() external onlyOwner {
+        stakingIsPaused = false;
     }
 
     function updateMultiplier(uint256 multiplierNumber) public onlyOwner {
@@ -172,7 +201,7 @@ contract MasterChefV1 is Ownable, ReentrancyGuard {
         pool.lastRewardBlock = block.number;
     }
 
-    function stake(uint256 _pid, uint256 _amount) public validatePool(_pid) {
+    function stake(uint256 _pid, uint256 _amount) public validatePool(_pid) whenNotPaused whenNotStakingPaused {
         require(_amount > 0, "Amount must be greater than 0");
 
         PoolInfo storage pool = poolInfo[_pid];
@@ -192,7 +221,7 @@ contract MasterChefV1 is Ownable, ReentrancyGuard {
         emit Deposit(msg.sender, _pid, _amount);
     }
 
-    function autoCompound(uint256 _pid) public {
+    function autoCompound(uint256 _pid) public whenNotPaused whenNotStakingPaused {
         uint256 rewards = pendingReward(_pid, msg.sender);
         require(rewards > 0, "Dont have Rewards");
         withdrawToken(_pid);
@@ -200,13 +229,13 @@ contract MasterChefV1 is Ownable, ReentrancyGuard {
     }
 
 
-    function withdrawToken(uint256 _pid) public {
+    function withdrawToken(uint256 _pid) public whenNotPaused {
         uint256 rewards = pendingReward(_pid, msg.sender);
         require(rewards > 0, "Dont have Rewards");
         unstake(_pid, 0);
     }
 
-    function unstake(uint256 _pid, uint256 _amount) public validatePool(_pid) {
+    function unstake(uint256 _pid, uint256 _amount) public validatePool(_pid) whenNotPaused {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -224,14 +253,14 @@ contract MasterChefV1 is Ownable, ReentrancyGuard {
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
-    function emergencyWithdraw(uint256 _pid) public {
+/*     function emergencyWithdraw(uint256 _pid) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         pool.lpToken.safeTransfer(address(msg.sender), user.amount);
         emit EmergencyWithdraw(msg.sender, _pid, user.amount);
         user.amount = 0;
         user.pendingReward = 0;
-    }
+    } */
 
     function getPoolInfo(uint256 _pid) public view
     returns(address lpToken, uint256 allocPoint, uint256 lastRewardBlock, uint256 rewardTokenPerShare) {
